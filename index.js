@@ -14,7 +14,7 @@ app.use(cors({
 
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 // const uri = "mongodb+srv://<db_username>:<db_password>@cluster0.gplglww.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const uri = `${process.env.URI}`;
 
@@ -56,6 +56,12 @@ async function run() {
           return [];
         }
       }
+
+      // All smartphones
+      app.get("/allSmartPhones", async(req, res)=>{
+        const result = await smartPhonesCollection.find().toArray();
+        res.send(result)
+      })
       
       // API route to fetch unique models for desired brand
       app.get("/allSmartPhones/:brand", async (req, res) => {
@@ -66,7 +72,7 @@ async function run() {
         res.json(models);
       });
 
-
+      // API to fetch specific models of desired Brands
       app.get("/allSmartPhones/:brand/:model", async (req, res) => {
         const modelName = req.params.model;
         const cursor = {model: modelName}
@@ -78,6 +84,14 @@ async function run() {
     // All Smartphone Brands
       app.get("/allSmartPhoneBrands", async(req, res)=>{
         const result = await smartPhoneBrandsCollection.find().toArray();
+        res.send(result)
+      })
+
+      // Fetch Product Details
+      app.get("/product/:productId", async(req, res)=>{
+        const id = req.params.productId;
+        const cursor = {_id: new ObjectId(id)};
+        const result = await smartPhonesCollection.findOne(cursor);
         res.send(result)
       })
 
