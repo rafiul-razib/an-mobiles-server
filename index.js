@@ -37,6 +37,7 @@ async function run() {
     const database = client.db("anMobiles");
     const smartPhonesCollection = database.collection("smartPhones");
     const smartPhoneBrandsCollection = database.collection("smartPhoneBrands");
+    const usersCollection = database.collection("users");
 
 
 
@@ -92,6 +93,12 @@ async function run() {
         const id = req.params.productId;
         const cursor = {_id: new ObjectId(id)};
         const result = await smartPhonesCollection.findOne(cursor);
+        res.send(result)
+      })
+
+      app.post("/newUser", async(req, res)=>{
+        const newUser = req.body
+        const result = await usersCollection.insertOne(newUser);
         res.send(result)
       })
 
