@@ -76,10 +76,17 @@ async function run() {
         }
       }
       
-
+      // CRUD
       // All smartphones
-      app.get("/allSmartPhones", async(req, res)=>{
-        const result = await smartPhonesCollection.find().toArray();
+      app.get("/allProducts", async(req, res)=>{
+        const result = await productsCollection.find().toArray();
+        res.send(result)
+      })
+
+      app.delete("/dashboard/deleteProduct/:id", async(req,res)=>{
+        const productId = req.params.id;
+        const query = {_id: new ObjectId(productId)};
+        const result = await productsCollection.deleteOne(query);
         res.send(result)
       })
 
