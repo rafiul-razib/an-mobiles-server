@@ -3,6 +3,12 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT ||  5000;
 require ('dotenv').config();
+const axios = require("axios");
+const multer  = require('multer');
+const FormData = require("form-data");
+
+// Configure Multer to store files in memory
+const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(cors({
   origin: [
@@ -12,6 +18,12 @@ app.use(cors({
   ],
 }));
 
+
+// Middleware to parse JSON bodies
+app.use(express.json());  
+
+const image_hosting_key = process.env.NEXT_IMAGE_HOSTING_KEY;
+const image_hosting_api = `https://api.imgbb.com/1/upload?key=${image_hosting_key}`;
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -78,6 +90,14 @@ async function run() {
       
       // CRUD
       // All smartphones
+
+      app.post("/addNewProduct", async(req, res)=>{
+        const newProductItem = req.body;
+        console.log(newProductItem);
+        const result = await productsCollection.insertOne(newProductItem);
+        res.send(result)
+      })
+
       app.get("/allProducts", async(req, res)=>{
         const result = await productsCollection.find().toArray();
         res.send(result)
@@ -200,6 +220,31 @@ async function run() {
 run().catch(console.dir);
 
 
+app.post("/api/upload", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Convert image to Base64 for ImgBB API
+    const formData = new FormData();
+    formData.append("image", req.file.buffer.toString("base64"));
+
+    // Send image to ImgBB
+    const response = await axios.post(image_hosting_api, formData, {
+      headers: formData.getHeaders(),
+    });
+
+    if (response.data.success) {
+      return res.json({ success: true, url: response.data.data.display_url });
+    } else {
+      return res.status(500).json({ error: "Image upload failed" });
+    }
+  } catch (error) {
+    console.error("Upload Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 app.get("/", (req,res)=>{
     res.send("AN Mobiles server is running!")
