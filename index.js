@@ -6,6 +6,7 @@ require ('dotenv').config();
 const axios = require("axios");
 const multer  = require('multer');
 const FormData = require("form-data");
+const stripe = require("stripe")(process.env.NEXT_PUBLIC_PAYMENT_GATEWAY_SK)
 
 // Configure Multer to store files in memory
 const upload = multer({ storage: multer.memoryStorage() });
@@ -51,6 +52,7 @@ async function run() {
     const productsCollection = database.collection("products");
     const smartPhoneBrandsCollection = database.collection("smartPhoneBrands");
     const usersCollection = database.collection("users");
+    const paymentInfoCollection = database.collection("paymentInfo");
 
 
 
@@ -93,7 +95,7 @@ async function run() {
 
       app.post("/addNewProduct", async(req, res)=>{
         const newProductItem = req.body;
-        console.log(newProductItem);
+        // console.log(newProductItem);
         const result = await productsCollection.insertOne(newProductItem);
         res.send(result)
       })
@@ -172,23 +174,6 @@ async function run() {
       });
 
 
-      // // API route to fetch unique models for desired brand
-      // app.get("/allSmartPhones/:brand", async (req, res) => {
-      //   const brandName = req.params.brand;
-      //   const query = brandName.toLowerCase()
-      //   const cursor = {brand: query}
-      //   const models = await getUniqueModels(smartPhonesCollection,cursor);
-      //   res.json(models);
-      // });
-
-      // // API to fetch specific models of desired Brands
-      // app.get("/allSmartPhones/:brand/:model", async (req, res) => {
-      //   const modelName = req.params.model;
-      //   const cursor = {model: modelName}
-      //   const models = await smartPhonesCollection.find(cursor).toArray();
-      //   res.json(models);
-      // });
-
 
     // All Smartphone Brands
       app.get("/allSmartPhoneBrands", async(req, res)=>{
@@ -209,6 +194,77 @@ async function run() {
         const result = await usersCollection.insertOne(newUser);
         res.send(result)
       })
+
+      app.post("/create-payment-intent", async (req, res) => {
+        try {
+          const { productId } = req.body;
+      
+          if (!productId) {
+            return res.status(400).json({ error: "Product ID is required" });
+          }
+      
+          const item = await productsCollection.findOne({ _id: new ObjectId(productId) });
+      
+          if (!item) {
+            return res.status(404).json({ error: "Product not found" });
+          }
+      
+          const amount = parseInt(item.price * 100); // Convert price to cents
+      
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: amount,
+            currency: "eur", // Make sure your Stripe settings support this currency
+            payment_method_types: ["card"],
+          });
+      
+          res.json({ clientSecret: paymentIntent.client_secret });
+        } catch (error) {
+          console.error("Payment Intent Error:", error);
+          res.status(500).json({ error: "Internal Server Error" });
+        }
+      });
+
+
+      app.post("/payments", async (req, res) => {
+        try {
+          const payment = req.body;
+          
+          // Insert payment record into database
+          const paymentResult = await paymentInfoCollection.insertOne(payment);
+      
+          const productId = payment.productId;
+      
+          // Ensure productId is valid
+          if (!productId) {
+            return res.status(400).json({ error: "Product ID is required" });
+          }
+      
+          // Find the product
+          const item = await productsCollection.findOne({ _id: new ObjectId(productId) });
+      
+          if (!item) {
+            return res.status(404).json({ error: "Product not found" });
+          }
+      
+          // Ensure stock is available before decreasing
+          if (item.stock <= 0) {
+            return res.status(400).json({ error: "Product is out of stock" });
+          }
+      
+          // Update stock by decreasing it by 1
+          const updateResult = await productsCollection.updateOne(
+            { _id: new ObjectId(productId) },
+            { $inc: { stock: -1 } } // Decrease stock by 1
+          );
+      
+          res.json({ paymentResult, updateResult });
+        } catch (error) {
+          console.error("Payment Processing Error:", error);
+          res.status(500).json({ error: "Internal Server Error" });
+        }
+      });
+      
+      
 
 
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
