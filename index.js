@@ -228,11 +228,12 @@ async function run() {
       app.post("/payments", async (req, res) => {
         try {
           const payment = req.body;
+          // console.log(payment)
           
           // Insert payment record into database
           const paymentResult = await paymentInfoCollection.insertOne(payment);
       
-          const productId = payment.productId;
+          const productId = payment.itemId;
       
           // Ensure productId is valid
           if (!productId) {
