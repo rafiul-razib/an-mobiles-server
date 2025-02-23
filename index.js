@@ -53,6 +53,7 @@ async function run() {
     const smartPhoneBrandsCollection = database.collection("smartPhoneBrands");
     const usersCollection = database.collection("users");
     const paymentInfoCollection = database.collection("paymentInfo");
+    const orderCollection = database.collection("orders");
 
 
 
@@ -197,23 +198,13 @@ async function run() {
 
       app.post("/create-payment-intent", async (req, res) => {
         try {
-          const { productId } = req.body;
+          const { totalPrice } = req.body;
       
-          if (!productId) {
-            return res.status(400).json({ error: "Product ID is required" });
-          }
-      
-          const item = await productsCollection.findOne({ _id: new ObjectId(productId) });
-      
-          if (!item) {
-            return res.status(404).json({ error: "Product not found" });
-          }
-      
-          const amount = parseInt(item.price * 100); // Convert price to cents
+          const amount = parseInt(totalPrice * 100); // Convert price to cents
       
           const paymentIntent = await stripe.paymentIntents.create({
             amount: amount,
-            currency: "eur", // Make sure your Stripe settings support this currency
+            currency: "GBP", // Make sure your Stripe settings support this currency
             payment_method_types: ["card"],
           });
       
@@ -228,42 +219,92 @@ async function run() {
       app.post("/payments", async (req, res) => {
         try {
           const payment = req.body;
-          // console.log(payment)
-          
+          const email = payment.billing_details.email;
+      
+          // Define cursor to delete items from cart
+          const cursor = { userEmail: email };
+      
           // Insert payment record into database
           const paymentResult = await paymentInfoCollection.insertOne(payment);
       
-          const productId = payment.itemId;
+          // Delete paid products from cart
+          const deleteFromCart = await orderCollection.deleteMany(cursor);
       
-          // Ensure productId is valid
-          if (!productId) {
-            return res.status(400).json({ error: "Product ID is required" });
+          // Extract product IDs and quantities from payment
+          const products = payment.items.map(item => ({
+            productId: new ObjectId(item.productId),
+            quantity: item.quantity || 1 // Ensure quantity exists (default: 1)
+          }));
+      
+          // Ensure products array is not empty
+          if (!products.length) {
+            return res.status(400).json({ error: "No products to update" });
           }
       
-          // Find the product
-          const item = await productsCollection.findOne({ _id: new ObjectId(productId) });
+          // Bulk update stock for better efficiency
+          const bulkOps = products.map(product => ({
+            updateOne: {
+              filter: { _id: product.productId, stock: { $gte: product.quantity } }, // Ensure stock is available
+              update: { $inc: { stock: -product.quantity } } // Decrease stock
+            }
+          }));
       
-          if (!item) {
-            return res.status(404).json({ error: "Product not found" });
-          }
+          const updateResult = await productsCollection.bulkWrite(bulkOps);
       
-          // Ensure stock is available before decreasing
-          if (item.stock <= 0) {
-            return res.status(400).json({ error: "Product is out of stock" });
-          }
+          // Return response
+          res.json({ paymentResult, updateResult, deleteFromCart });
       
-          // Update stock by decreasing it by 1
-          const updateResult = await productsCollection.updateOne(
-            { _id: new ObjectId(productId) },
-            { $inc: { stock: -1 } } // Decrease stock by 1
-          );
-      
-          res.json({ paymentResult, updateResult });
         } catch (error) {
           console.error("Payment Processing Error:", error);
           res.status(500).json({ error: "Internal Server Error" });
         }
       });
+
+      app.get("/allPaidOrders", async(req, res)=>{
+        const result = await paymentInfoCollection.find().toArray();
+        res.send(result)
+      })
+
+      app.get("/orderDetails/:id", async(req, res)=>{
+        const id = req.params.id;
+        const cursor = {_id: new ObjectId(id)};
+        const result = await paymentInfoCollection.findOne(cursor);
+        res.send(result);
+      })
+      
+
+
+      app.post("/addToBasket", async(req, res)=>{
+        const order = req.body;
+        const result = await orderCollection.insertOne(order);
+        res.send(result)
+      })
+
+
+      app.get('/myBasketProducts', async (req, res) => {
+        try {
+          let query = {};
+          
+          if (req.query?.email) {
+            // console.log(req.query);
+            query = { userEmail: req.query.email }; // Corrected typo
+          }
+      
+          const result = await orderCollection.find(query).toArray();
+          res.send(result);
+        } catch (error) {
+          console.error("Error fetching basket products:", error);
+          res.status(500).send({ message: "Server error" });
+        }
+      });
+      
+
+      app.delete("/deleteFromCart/:id", async(req, res)=>{
+        const id = req.params.id;
+        cursor = {_id: new ObjectId(id)};
+        const result = await orderCollection.deleteOne(cursor);
+        res.send(result)
+      })
       
       
 
@@ -302,6 +343,10 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+
+
+
 
 app.get("/", (req,res)=>{
     res.send("AN Mobiles server is running!")
