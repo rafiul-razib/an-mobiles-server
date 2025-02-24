@@ -305,6 +305,45 @@ async function run() {
         const result = await orderCollection.deleteOne(cursor);
         res.send(result)
       })
+
+      app.patch("/confirmOrder/:id", async(req, res)=>{
+        const id = req.params.id;
+        const filter = {_id: new ObjectId(id)};
+        const confirmOrder = {
+          $set: {
+            status: "Confirmed",
+            confirmedOn: new Date()
+          }
+        };
+        const result = await paymentInfoCollection.updateOne(filter, confirmOrder);
+        res.send(result)
+      })
+
+      app.patch("/dispatchOrder/:id", async(req, res)=>{
+        const id = req.params.id;
+        const filter = {_id: new ObjectId(id)};
+        const confirmOrder = {
+          $set: {
+            status: "Dispatched",
+            dispatchedOn: new Date()
+          }
+        };
+        const result = await paymentInfoCollection.updateOne(filter, confirmOrder);
+        res.send(result)
+      })
+
+      app.patch("/cancelOrder/:id", async(req, res)=>{
+        const id = req.params.id;
+        const filter = {_id: new ObjectId(id)};
+        const confirmOrder = {
+          $set: {
+            status: "Cancelled",
+            cancelledOn: new Date()
+          }
+        };
+        const result = await paymentInfoCollection.updateOne(filter, confirmOrder);
+        res.send(result)
+      })
       
       
 
