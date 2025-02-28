@@ -7,6 +7,8 @@ const axios = require("axios");
 const multer  = require('multer');
 const FormData = require("form-data");
 const stripe = require("stripe")(process.env.NEXT_PUBLIC_PAYMENT_GATEWAY_SK)
+const jwt = require ("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 // Configure Multer to store files in memory
 const upload = multer({ storage: multer.memoryStorage() });
@@ -17,11 +19,46 @@ app.use(cors({
     "https://an-mobiles-client.vercel.app",
 
   ],
+  credentials: true,
 }));
 
 
 // Middleware to parse JSON bodies
 app.use(express.json());  
+app.use(cookieParser()); // Enable cookie parsing
+
+// Middleware to verify user authentication
+const verifyUser = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized: No token provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    // ✅ Ensure NEXTAUTH_SECRET is correctly set
+    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
+    console.log("Decoded Token:", decoded);
+
+    // ✅ Allow multiple admin emails
+    const adminEmails = ["anmobilesltd2020@gmail.com", "rafiul.rzb@gmail.com"];
+    
+    if (!adminEmails.includes(decoded.email)) {
+      return res.status(403).json({ message: "Forbidden: You do not have access" });
+    }
+
+    req.user = decoded; // Attach decoded user to request
+    next();
+  } catch (error) {
+    console.error("JWT Verification Error:", error.message);
+    return res.status(403).json({ error: "Invalid or expired token" });
+  }
+};
+
+
+
 
 const image_hosting_key = process.env.NEXT_IMAGE_HOSTING_KEY;
 const image_hosting_api = `https://api.imgbb.com/1/upload?key=${image_hosting_key}`;
@@ -42,11 +79,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-
     const database = client.db("anMobiles");
     const smartPhonesCollection = database.collection("smartPhones");
     const productsCollection = database.collection("products");
@@ -54,8 +86,6 @@ async function run() {
     const usersCollection = database.collection("users");
     const paymentInfoCollection = database.collection("paymentInfo");
     const orderCollection = database.collection("orders");
-
-
 
     async function getUniqueModels(collection, cursor) {
         try {
@@ -94,14 +124,14 @@ async function run() {
       // CRUD
       // All smartphones
 
-      app.post("/addNewProduct", async(req, res)=>{
+      app.post("/addNewProduct" ,verifyUser, async(req, res)=>{
         const newProductItem = req.body;
         // console.log(newProductItem);
         const result = await productsCollection.insertOne(newProductItem);
         res.send(result)
       })
 
-      app.get("/allProducts", async(req, res)=>{
+      app.get("/allProducts", verifyUser, async(req, res)=>{
         const result = await productsCollection.find().toArray();
         res.send(result)
       })
@@ -260,7 +290,7 @@ async function run() {
         }
       });
 
-      app.get("/allPaidOrders", async(req, res)=>{
+      app.get("/allPaidOrders", verifyUser, async(req, res)=>{
         const result = await paymentInfoCollection.find().toArray();
         res.send(result)
       })
@@ -344,6 +374,23 @@ async function run() {
         const result = await paymentInfoCollection.updateOne(filter, confirmOrder);
         res.send(result)
       })
+
+      app.get('/myPaidOrders', async (req, res) => {
+        try {
+          let query = {};
+          
+          if (req.query?.email) {
+           
+            query = { "billing_details.email": req.query.email }; 
+          }
+      
+          const result = await paymentInfoCollection.find(query).toArray();
+          res.send(result);
+        } catch (error) {
+          console.error("Error fetching paid orders:", error);
+          res.status(500).send({ message: "Server error" });
+        }
+      });
       
       
 
