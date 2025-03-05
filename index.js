@@ -136,6 +136,13 @@ async function run() {
         res.send(result)
       })
 
+      app.get("/searchedProducts/:searchText", async(req, res)=>{
+        const searchByText = req.params.searchText;
+        const cursor = {model: {$regex: searchByText, $options: "i"}} 
+        const result = await productsCollection.find(cursor).toArray();
+        res.send(result)
+      })
+
       app.delete("/dashboard/deleteProduct/:id", async(req,res)=>{
         const productId = req.params.id;
         const query = {_id: new ObjectId(productId)};
