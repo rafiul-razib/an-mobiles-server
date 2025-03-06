@@ -17,6 +17,7 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "https://an-mobiles-client.vercel.app",
+    "https://anmobilesltd.co.uk/"
 
   ],
   credentials: true,
