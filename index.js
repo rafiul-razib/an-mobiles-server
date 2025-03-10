@@ -17,7 +17,7 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "https://an-mobiles-client.vercel.app",
-    "https://anmobilesltd.co.uk/"
+    "https://anmobilesltd.co.uk"
 
   ],
   credentials: true,
@@ -68,6 +68,7 @@ const image_hosting_api = `https://api.imgbb.com/1/upload?key=${image_hosting_ke
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 // const uri = "mongodb+srv://<db_username>:<db_password>@cluster0.gplglww.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const uri = `${process.env.URI}`;
+console.log(uri)
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -132,6 +133,8 @@ async function run() {
         res.send(result)
       })
 
+      
+
       app.get("/allProducts", verifyUser, async(req, res)=>{
         const result = await productsCollection.find().toArray();
         res.send(result)
@@ -150,6 +153,31 @@ async function run() {
         const result = await productsCollection.deleteOne(query);
         res.send(result)
       })
+
+      app.put("/dashboard/updateProduct/:id", verifyUser, async (req, res) => {
+        try {
+          const productId = req.params.id;
+          const updatedProduct = req.body; // Get update data from request body
+      
+          if (!ObjectId.isValid(productId)) {
+            return res.status(400).json({ error: "Invalid product ID" });
+          }
+      
+          const query = { _id: new ObjectId(productId) };
+          const update = { $set: updatedProduct }; // Apply the update
+      
+          const result = await productsCollection.updateOne(query, update, {upsert: false});
+      
+          if (result.modifiedCount === 0) {
+            return res.status(404).json({ message: "No product was updated. It may not exist." });
+          }
+      
+          res.json({ success: true, message: "Product updated successfully", result });
+        } catch (error) {
+          console.error("Error updating product:", error);
+          res.status(500).json({ error: "Internal Server Error" });
+        }
+      });
 
 
       // All products by category
