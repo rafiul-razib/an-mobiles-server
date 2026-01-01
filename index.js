@@ -44,7 +44,7 @@ const verifyUser = (req, res, next) => {
     console.log("Decoded Token:", decoded);
 
     // ✅ Allow multiple admin emails
-    const adminEmails = ["anmobilesltd2020@gmail.com", "rafiul.rzb@gmail.com"];
+    const adminEmails = ["anmobilesltd2020@gmail.com", "rafiul.rzb@gmail.com", "info@anmobilesltd.co.uk"];
     
     if (!adminEmails.includes(decoded.email)) {
       return res.status(403).json({ message: "Forbidden: You do not have access" });
@@ -81,7 +81,8 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    const database = client.db("anMobiles");
+    await client.connect();
+    const database = client.db("anmobile_testDb");
     const smartPhonesCollection = database.collection("smartPhones");
     const productsCollection = database.collection("products");
     const smartPhoneBrandsCollection = database.collection("smartPhoneBrands");
@@ -135,8 +136,9 @@ async function run() {
 
       
 
-      app.get("/allProducts", verifyUser, async(req, res)=>{
+      app.get("/allProducts", async(req, res)=>{
         const result = await productsCollection.find().toArray();
+        // console.log(result);
         res.send(result)
       })
 
